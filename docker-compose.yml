@@ -1,0 +1,27 @@
+# before running the servces through this compose file,
+# the prebuilt ubuntu image which includes the compiled version of IronMask
+# project, should be imorted into your local docker image registry.
+# all required resources for creating a testbench is existed on github page
+# includes importable docker image and other resources so:
+# first download resources from github
+# appropriate guid documents can be found on the project github README file
+ 
+services:
+  m4_x86_ubuntu:
+    image: m4_ubuntu_x86_host:latest
+    container_name: m4_x86_ubuntu
+    platform: linux/amd64
+
+    tty: true
+    stdin_open: true
+
+    cpus: 8
+    mem_limit: 12g
+    memswap_limit: 20g
+
+    volumes:
+      - ./verification:/work
+      - ./boardinit/Core/Src/gadgets.c:/work/gadgets/gadgets.c
+      - ./results:/work/results
+
+    command: bash

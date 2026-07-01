@@ -1,0 +1,54 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "stlinkgdbtarget",
+      "request": "launch",
+      "name": "STM32Cube: Launch ST-Link GDB Server",
+      "origin": "snippet",
+      "cwd": "${workspaceFolder}",
+      "preBuild": "${command:st-stm32-ide-debug-launch.build}",
+      "runEntry": "main",
+      "imagesAndSymbols": [
+        {
+          "imageFileName": "${command:st-stm32-ide-debug-launch.get-projects-binary-from-context1}"
+        }
+      ]
+    },
+    {
+      "name": "STM32F407 OpenOCD + SWO printf",
+      "type": "cortex-debug",
+      "request": "launch",
+
+      "cwd": "${workspaceFolder}",
+      "executable": "${command:st-stm32-ide-debug-launch.get-projects-binary-from-context1}",
+
+      "servertype": "openocd",
+      "configFiles": [
+        "interface/stlink.cfg",
+        "target/stm32f4x.cfg"
+      ],
+
+      "device": "STM32F407VG",
+      "interface": "swd",
+
+      "runToEntryPoint": "main",
+
+      "swoConfig": {
+        "enabled": true,
+        "cpuFrequency": 16000000,
+        "swoFrequency": 100000,
+        "source": "probe",
+        "decoders": [
+          {
+            "label": "ITM Port 0",
+            "type": "console",
+            "port": 0,
+            "encoding": "ascii",
+            "showOnStartup": true
+          }
+        ]
+      }
+    }
+  ]
+}
