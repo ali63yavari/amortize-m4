@@ -9,6 +9,9 @@ void masked_xor(uint32_t *c, const uint32_t *a, const uint32_t *b, int n) {
 /* ISW multiplication (Ishai-Sahai-Wagner 2003), d-SNI instantiation.
  * O(n^2) ops, n(n-1)/2 fresh random words. */
 void isw_and(uint32_t *c, const uint32_t *a, const uint32_t *b, int n) {
+#ifdef COUNT_MODE
+    extern unsigned long g_isw_count; g_isw_count++;
+#endif
     uint32_t t[NSHARES_MAX];
     for (int i = 0; i < n; i++) t[i] = opt_bar(a[i] & b[i]);
     for (int i = 0; i < n; i++) {
@@ -20,6 +23,39 @@ void isw_and(uint32_t *c, const uint32_t *a, const uint32_t *b, int n) {
         }
     }
     memcpy(c, t, (size_t)n * sizeof(uint32_t));
+}
+
+/* HPC2 multiplication (Cassiers, Gregoire, Levi, Standaert 2021), the PINI
+ * replacement for isw_and. Symmetric randoms r_{ij}=r_{ji}, n(n-1)/2 of them,
+ * i.e. the SAME randomness count as ISW. The cross term into domain i is
+ *   ((~a_i) & r_ij) ^ (a_i & (b_j ^ r_ij)),
+ * which equals a_i*b_j ^ r_ij algebraically but never exposes the bare
+ * product a_i*b_j on any wire, which is what makes it PINI where ISW is not.
+ * The ~ is a public-constant injection (bitwise complement over the 32-slice
+ * word) and is masking-neutral. PINI must be machine-checked in a NOT-capable
+ * tool (SILVER / fullVerif); see the provided .silver inputs. */
+void hpc2_and(uint32_t *c, const uint32_t *a, const uint32_t *b, int n) {
+#ifdef COUNT_MODE
+    extern unsigned long g_isw_count; g_isw_count++;   /* count as a mult gadget */
+#endif
+    uint32_t r[NSHARES_MAX][NSHARES_MAX];
+    for (int i = 0; i < n; i++)
+        for (int j = i + 1; j < n; j++) {
+            uint32_t rr = rand32();
+            r[i][j] = rr; r[j][i] = rr;               /* symmetric */
+        }
+    for (int i = 0; i < n; i++) {
+        uint32_t acc = opt_bar(a[i] & b[i]);          /* domain term */
+        for (int j = 0; j < n; j++) {
+            if (j == i) continue;
+            uint32_t rij = r[i][j];
+            uint32_t t1  = opt_bar((uint32_t)(~a[i]) & rij);      /* (~a_i)&r   */
+            uint32_t bm  = opt_bar(b[j] ^ rij);                  /* b_j ^ r    */
+            uint32_t t2  = opt_bar(a[i] & bm);                  /* a_i&(b_j^r) */
+            acc = opt_bar(acc ^ opt_bar(t1 ^ t2));
+        }
+        c[i] = acc;
+    }
 }
 
 /* ISW-style SNI refresh: n(n-1)/2 randoms. */
@@ -49,17 +85,17 @@ void ks_add(uint32_t S[KS_WORDS][NSHARES_MAX],
     uint32_t G[KS_WORDS][NSHARES_MAX], P[KS_WORDS][NSHARES_MAX],
              Pp[KS_WORDS][NSHARES_MAX], t[NSHARES_MAX];
     for (int i = 0; i < KS_WORDS; i++) {
-        isw_and(G[i], A[i], B[i], n);
+        hpc2_and(G[i], A[i], B[i], n);
         masked_xor(P[i], A[i], B[i], n);
         memcpy(Pp[i], P[i], sizeof(P[i]));
     }
     for (int dist = 1; dist < KS_WORDS; dist <<= 1) {
         for (int i = KS_WORDS - 1; i >= dist; i--) {
-            isw_and(t, Pp[i], G[i - dist], n);
+            hpc2_and(t, Pp[i], G[i - dist], n);
             masked_xor(G[i], G[i], t, n);
         }
         for (int i = KS_WORDS - 1; i >= 2 * dist; i--)
-            isw_and(Pp[i], Pp[i], Pp[i - dist], n);
+            hpc2_and(Pp[i], Pp[i], Pp[i - dist], n);
     }
     memcpy(S[0], P[0], sizeof(S[0]));
     for (int i = 1; i < KS_WORDS; i++)

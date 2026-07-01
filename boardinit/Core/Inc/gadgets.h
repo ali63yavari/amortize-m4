@@ -32,6 +32,7 @@ static inline uint32_t opt_bar(uint32_t x) {
 
 void masked_xor(uint32_t *c, const uint32_t *a, const uint32_t *b, int n);
 void isw_and  (uint32_t *c, const uint32_t *a, const uint32_t *b, int n);
+void hpc2_and (uint32_t *c, const uint32_t *a, const uint32_t *b, int n);
 void refresh_sni(uint32_t *a, int n);
 void linear_refresh(uint32_t *a, int n);
 void inject_uniform(uint32_t *sh, uint32_t w, int n);
